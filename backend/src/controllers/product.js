@@ -1,5 +1,79 @@
-// src/controllers/product.js
 import { getSession } from '../config/db.js';
+import { v4 as uuidv4 } from 'uuid';
+
+/**
+ * Create a new product and link it to Brand + Category
+ * Expected body:
+ * {
+ *   "name": "Air Max 2024",
+ *   "price": 159.99,
+ *   "stock": 50,
+ *   "brandId": "uuid-of-brand",
+ *   "categoryId": "uuid-of-category",
+ *   "imageUrl": "https://example.com/image.jpg" // optional
+ * }
+ */
+export const createProduct = async (req, res) => {
+  const session = getSession();
+  const { name, price, stock, brandId, categoryId, imageUrl } = req.body;
+
+  if (!name || !brandId || !categoryId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required fields: name, brandId, categoryId',
+    });
+  }
+
+  try {
+    const id = uuidv4();
+
+    const result = await session.run(
+      `
+      MATCH (b:Brand {id: $brandId})
+      MATCH (c:Category {id: $categoryId})
+      CREATE (p:Product {
+        id: $id,
+        name: $name,
+        price: $price,
+        stock: $stock,
+        imageUrl: $imageUrl
+      })
+      MERGE (p)-[:OFFERED_BY]->(b)
+      MERGE (p)-[:BELONGS_TO]->(c)
+      RETURN p, b, c
+      `,
+      {
+        id,
+        name,
+        price: price ?? null,
+        stock: stock ?? 0,
+        imageUrl: imageUrl || null,
+        brandId,
+        categoryId,
+      }
+    );
+
+    const record = result.records[0];
+    const product = {
+      ...record.get('p').properties,
+      brand: record.get('b').properties,
+      category: record.get('c').properties,
+    };
+
+    res.status(201).json({
+      success: true,
+      message: 'Product created successfully',
+      product,
+    });
+  } catch (error) {
+    console.error('Error creating product:', error);
+    res
+      .status(500)
+      .json({ success: false, message: 'Internal server error' });
+  } finally {
+    await session.close();
+  }
+};
 
 /**
  * Get product by ID
