@@ -1,4 +1,5 @@
 import { getSession } from '../config/db.js';
+import neo4j from "neo4j-driver";
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -130,6 +131,7 @@ export const getProductById = async (req, res) => {
 };
 
 // Combined handler: supports search + brand + category filters
+/*
 export const getProducts = async (req, res) => {
     const session = getSession();
     const { query, brand, category } = req.query;
@@ -182,6 +184,102 @@ export const getProducts = async (req, res) => {
         await session.close();
     }
 };
+*/
+
+export const getProducts = async (req, res) => {
+  const session = getSession();
+  const { query, brand, category } = req.query;
+  const userId = req.user?.id || null;
+  const limit = Math.max(1, Math.min(50, parseInt(req.query.limit || "20", 10))); // safe integer
+
+  try {
+    let cypher;
+    const params = { userId, query, brand, category };
+
+    if (userId) {
+      cypher = `
+        // 1️⃣ Personalized recommendations (collaborative filtering)
+        MATCH (u:User {id: $userId})-[r1:LIKED|BOUGHT|VIEWED]->(p:Product)
+        WITH u, COLLECT(p) AS userProducts
+        MATCH (other:User)-[r2:LIKED|BOUGHT|VIEWED]->(same:Product)
+        WHERE other <> u AND same IN userProducts
+        WITH u, other, COUNT(same) AS shared
+        MATCH (other)-[:LIKED|BOUGHT|VIEWED]->(rec:Product)
+        WHERE NOT (u)-[:LIKED|BOUGHT|VIEWED]->(rec)
+        OPTIONAL MATCH (rec)-[:BELONGS_TO]->(c:Category)
+        OPTIONAL MATCH (rec)-[:OFFERED_BY]->(b:Brand)
+        WITH rec, b, c, SUM(shared) AS score
+        ORDER BY score DESC
+        LIMIT ${limit}
+        RETURN rec AS product, b, c, score
+
+        UNION
+
+        // 2️⃣ Popular fallback if no history
+        MATCH (p:Product)
+        OPTIONAL MATCH (p)<-[v:VIEWED]-()
+        OPTIONAL MATCH (p)<-[l:LIKED]-()
+        OPTIONAL MATCH (p)<-[b:BOUGHT]-()
+        WITH p, COUNT(v)+2*COUNT(l)+3*COUNT(b) AS popScore
+        OPTIONAL MATCH (p)-[:BELONGS_TO]->(c:Category)
+        OPTIONAL MATCH (p)-[:OFFERED_BY]->(b:Brand)
+        RETURN p AS product, b, c, popScore AS score
+        ORDER BY score DESC
+        LIMIT ${limit}
+      `;
+    } else {
+      cypher = `
+        MATCH (p:Product)
+        OPTIONAL MATCH (p)<-[v:VIEWED]-()
+        OPTIONAL MATCH (p)<-[l:LIKED]-()
+        OPTIONAL MATCH (p)<-[b:BOUGHT]-()
+        WITH p, COUNT(v)+2*COUNT(l)+3*COUNT(b) AS score
+        OPTIONAL MATCH (p)-[:BELONGS_TO]->(c:Category)
+        OPTIONAL MATCH (p)-[:OFFERED_BY]->(b:Brand)
+        RETURN p AS product, b, c, score
+        ORDER BY score DESC
+        LIMIT ${limit}
+      `;
+    }
+
+    // фильтрация (по названию, бренду, категории)
+    if (query || brand || category) {
+      cypher = `
+        CALL {
+          ${cypher}
+        }
+        WITH product, b, c, score
+        WHERE
+          (${query ? "toLower(product.name) CONTAINS toLower($query)" : "true"})
+          AND (${brand ? "toLower(b.name) = toLower($brand)" : "true"})
+          AND (${category ? "toLower(c.name) = toLower($category)" : "true"})
+        RETURN product, b, c, score
+        ORDER BY score DESC
+        LIMIT ${limit}
+      `;
+    }
+
+    const result = await session.run(cypher, params);
+
+    const products = result.records.map((r) => ({
+      ...r.get("product").properties,
+      brand: r.get("b")?.properties || null,
+      category: r.get("c")?.properties || null,
+      score: r.get("score")?.low || 0,
+    }));
+
+    res.json({ success: true, count: products.length, products });
+  } catch (err) {
+    console.error("Error fetching recommended catalog:", err);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error while building recommendation catalog",
+    });
+  } finally {
+    await session.close();
+  }
+};
+
 
 export const toggleLikeProduct = async (req, res) => {
   const session = getSession();
