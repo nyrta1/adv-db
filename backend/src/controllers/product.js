@@ -1,6 +1,8 @@
 import { getSession } from '../config/db.js';
-import neo4j from "neo4j-driver";
 import { v4 as uuidv4 } from 'uuid';
+
+const clientId = process.env.CLIENT_ID;
+const clientSecret = process.env.CLIENT_SECRET;
 
 /**
  * Create a new product and link it to Brand + Category
@@ -15,21 +17,21 @@ import { v4 as uuidv4 } from 'uuid';
  * }
  */
 export const createProduct = async (req, res) => {
-  const session = getSession();
-  const { name, price, stock, brandId, categoryId, imageUrl } = req.body;
+    const session = getSession();
+    const { name, price, stock, brandId, categoryId, imageUrl } = req.body;
 
-  if (!name || !brandId || !categoryId) {
-    return res.status(400).json({
-      success: false,
-      message: 'Missing required fields: name, brandId, categoryId',
-    });
-  }
+    if (!name || !brandId || !categoryId) {
+        return res.status(400).json({
+            success: false,
+            message: 'Missing required fields: name, brandId, categoryId',
+        });
+    }
 
-  try {
-    const id = uuidv4();
+    try {
+        const id = uuidv4();
 
-    const result = await session.run(
-      `
+        const result = await session.run(
+            `
       MATCH (b:Brand {id: $brandId})
       MATCH (c:Category {id: $categoryId})
       CREATE (p:Product {
@@ -43,91 +45,89 @@ export const createProduct = async (req, res) => {
       MERGE (p)-[:BELONGS_TO]->(c)
       RETURN p, b, c
       `,
-      {
-        id,
-        name,
-        price: price ?? null,
-        stock: stock ?? 0,
-        imageUrl: imageUrl || null,
-        brandId,
-        categoryId,
-      }
-    );
+            {
+                id,
+                name,
+                price: price ?? null,
+                stock: stock ?? 0,
+                imageUrl: imageUrl || null,
+                brandId,
+                categoryId,
+            }
+        );
 
-    const record = result.records[0];
-    const product = {
-      ...record.get('p').properties,
-      brand: record.get('b').properties,
-      category: record.get('c').properties,
-    };
+        const record = result.records[0];
+        const product = {
+            ...record.get('p').properties,
+            brand: record.get('b').properties,
+            category: record.get('c').properties,
+        };
 
-    res.status(201).json({
-      success: true,
-      message: 'Product created successfully',
-      product,
-    });
-  } catch (error) {
-    console.error('Error creating product:', error);
-    res
-      .status(500)
-      .json({ success: false, message: 'Internal server error' });
-  } finally {
-    await session.close();
-  }
+        res.status(201).json({
+            success: true,
+            message: 'Product created successfully',
+            product,
+        });
+    } catch (error) {
+        console.error('Error creating product:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    } finally {
+        await session.close();
+    }
 };
 
 /**
  * Get product by ID
  */
 export const getProductById = async (req, res) => {
-  const session = getSession();
-  const { id } = req.params;
-  const user = req.user; // берём из basicAuth middleware
+    const session = getSession();
+    const { id } = req.params;
+    const user = req.user; // берём из basicAuth middleware
 
-  try {
-    // 🧩 1️⃣ Находим товар
-    const result = await session.run(
-      `
+    try {
+        // 🧩 1️⃣ Находим товар
+        const result = await session.run(
+            `
       MATCH (p:Product {id: $id})
       OPTIONAL MATCH (p)-[:BELONGS_TO]->(c:Category)
       OPTIONAL MATCH (p)-[:OFFERED_BY]->(b:Brand)
       RETURN p, c, b
       `,
-      { id }
-    );
+            { id }
+        );
 
-    if (result.records.length === 0) {
-      return res.status(404).json({ success: false, message: 'Product not found' });
-    }
+        if (result.records.length === 0) {
+            return res.status(404).json({ success: false, message: 'Product not found' });
+        }
 
-    const record = result.records[0];
-    const product = {
-      ...record.get('p').properties,
-      category: record.get('c')?.properties || null,
-      brand: record.get('b')?.properties || null,
-    };
+        const record = result.records[0];
+        const product = {
+            ...record.get('p').properties,
+            category: record.get('c')?.properties || null,
+            brand: record.get('b')?.properties || null,
+        };
 
-    // 🧠 2️⃣ Если пользователь авторизован — создаём связь VIEWED
-    if (user?.id) {
-      await session.run(
-        `
+        // 🧠 2️⃣ Если пользователь авторизован — создаём связь VIEWED
+        if (user?.id) {
+            await session.run(
+                `
         MATCH (u:User {id: $userId}), (p:Product {id: $productId})
         MERGE (u)-[r:VIEWED]->(p)
         ON CREATE SET r.timestamp = datetime()
         ON MATCH SET r.timestamp = datetime()
         `,
-        { userId: user.id, productId: id }
-      );
-    }
+                { userId: user.id, productId: id }
+            );
+        }
 
-    // 🧾 3️⃣ Возвращаем результат
-    res.status(200).json({ success: true, product });
-  } catch (error) {
-    console.error('Error fetching product:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  } finally {
-    await session.close();
-  }
+        // 🧾 3️⃣ Возвращаем результат
+        res.status(200).json({ success: true, product });
+    } catch (error) {
+        console.error('Error fetching product:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    } finally {
+        await session.close();
+    }
 };
 
 // Combined handler: supports search + brand + category filters
@@ -187,17 +187,17 @@ export const getProducts = async (req, res) => {
 */
 
 export const getProducts = async (req, res) => {
-  const session = getSession();
-  const { query, brand, category } = req.query;
-  const userId = req.user?.id || null;
-  const limit = Math.max(1, Math.min(50, parseInt(req.query.limit || "20", 10))); // safe integer
+    const session = getSession();
+    const { query, brand, category } = req.query;
+    const userId = req.user?.id || null;
+    const limit = Math.max(1, Math.min(50, parseInt(req.query.limit || '20', 10))); // safe integer
 
-  try {
-    let cypher;
-    const params = { userId, query, brand, category };
+    try {
+        let cypher;
+        const params = { userId, query, brand, category };
 
-    if (userId) {
-      cypher = `
+        if (userId) {
+            cypher = `
         // 1️⃣ Personalized recommendations (collaborative filtering)
         MATCH (u:User {id: $userId})-[r1:LIKED|BOUGHT|VIEWED]->(p:Product)
         WITH u, COLLECT(p) AS userProducts
@@ -227,8 +227,8 @@ export const getProducts = async (req, res) => {
         ORDER BY score DESC
         LIMIT ${limit}
       `;
-    } else {
-      cypher = `
+        } else {
+            cypher = `
         MATCH (p:Product)
         OPTIONAL MATCH (p)<-[v:VIEWED]-()
         OPTIONAL MATCH (p)<-[l:LIKED]-()
@@ -240,104 +240,101 @@ export const getProducts = async (req, res) => {
         ORDER BY score DESC
         LIMIT ${limit}
       `;
-    }
+        }
 
-    // фильтрация (по названию, бренду, категории)
-    if (query || brand || category) {
-      cypher = `
+        // фильтрация (по названию, бренду, категории)
+        if (query || brand || category) {
+            cypher = `
         CALL {
           ${cypher}
         }
         WITH product, b, c, score
         WHERE
-          (${query ? "toLower(product.name) CONTAINS toLower($query)" : "true"})
-          AND (${brand ? "toLower(b.name) = toLower($brand)" : "true"})
-          AND (${category ? "toLower(c.name) = toLower($category)" : "true"})
+          (${query ? 'toLower(product.name) CONTAINS toLower($query)' : 'true'})
+          AND (${brand ? 'toLower(b.name) = toLower($brand)' : 'true'})
+          AND (${category ? 'toLower(c.name) = toLower($category)' : 'true'})
         RETURN product, b, c, score
         ORDER BY score DESC
         LIMIT ${limit}
       `;
+        }
+
+        const result = await session.run(cypher, params);
+
+        const products = result.records.map((r) => ({
+            ...r.get('product').properties,
+            brand: r.get('b')?.properties || null,
+            category: r.get('c')?.properties || null,
+            score: r.get('score')?.low || 0,
+        }));
+
+        res.json({ success: true, count: products.length, products });
+    } catch (err) {
+        console.error('Error fetching recommended catalog:', err);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error while building recommendation catalog',
+        });
+    } finally {
+        await session.close();
     }
-
-    const result = await session.run(cypher, params);
-
-    const products = result.records.map((r) => ({
-      ...r.get("product").properties,
-      brand: r.get("b")?.properties || null,
-      category: r.get("c")?.properties || null,
-      score: r.get("score")?.low || 0,
-    }));
-
-    res.json({ success: true, count: products.length, products });
-  } catch (err) {
-    console.error("Error fetching recommended catalog:", err);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error while building recommendation catalog",
-    });
-  } finally {
-    await session.close();
-  }
 };
 
-
 export const toggleLikeProduct = async (req, res) => {
-  const session = getSession();
-  const userId = req.user?.id;
-  const { id: productId } = req.params;
+    const session = getSession();
+    const userId = req.user?.id;
+    const { id: productId } = req.params;
 
-  if (!userId || !productId)
-    return res.status(400).json({ success: false, message: "Missing user or product ID" });
+    if (!userId || !productId) return res.status(400).json({ success: false, message: 'Missing user or product ID' });
 
-  try {
-    // Проверяем — уже лайкнут?
-    const check = await session.run(
-      `
+    try {
+        // Проверяем — уже лайкнут?
+        const check = await session.run(
+            `
       MATCH (u:User {id: $userId})-[r:LIKED]->(p:Product {id: $productId})
       RETURN r
       `,
-      { userId, productId }
-    );
+            { userId, productId }
+        );
 
-    if (check.records.length > 0) {
-      // Удаляем лайк
-      await session.run(
-        `MATCH (u:User {id: $userId})-[r:LIKED]->(p:Product {id: $productId}) DELETE r`,
-        { userId, productId }
-      );
-      return res.json({ success: true, liked: false, message: "Product unliked" });
-    } else {
-      // Создаём лайк
-      await session.run(
-        `
+        if (check.records.length > 0) {
+            // Удаляем лайк
+            await session.run(`MATCH (u:User {id: $userId})-[r:LIKED]->(p:Product {id: $productId}) DELETE r`, {
+                userId,
+                productId,
+            });
+            return res.json({ success: true, liked: false, message: 'Product unliked' });
+        } else {
+            // Создаём лайк
+            await session.run(
+                `
         MATCH (u:User {id: $userId}), (p:Product {id: $productId})
         MERGE (u)-[r:LIKED]->(p)
         ON CREATE SET r.timestamp = datetime()
         RETURN p
         `,
-        { userId, productId }
-      );
-      return res.json({ success: true, liked: true, message: "Product liked" });
+                { userId, productId }
+            );
+            return res.json({ success: true, liked: true, message: 'Product liked' });
+        }
+    } catch (err) {
+        console.error('Error toggling like:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    } finally {
+        await session.close();
     }
-  } catch (err) {
-    console.error("Error toggling like:", err);
-    res.status(500).json({ success: false, message: "Server error" });
-  } finally {
-    await session.close();
-  }
 };
 
 export const buyProduct = async (req, res) => {
-  const session = getSession();
-  const userId = req.user?.id;
-  const { id: productId } = req.params;
+    const session = getSession();
+    const userId = req.user?.id;
+    const { id: productId } = req.params;
 
-  if (!userId || !productId)
-    return res.status(400).json({ success: false, message: "Missing user or product ID" });
+    if (!userId || !productId) return res.status(400).json({ success: false, message: 'Missing user or product ID' });
 
-  try {
-    const result = await session.run(
-      `
+    try {
+        const result = await session.run(
+            `
       MATCH (u:User {id: $userId}), (p:Product {id: $productId})
       WHERE p.stock > 0
       SET p.stock = p.stock - 1
@@ -346,17 +343,74 @@ export const buyProduct = async (req, res) => {
       ON MATCH SET r.quantity = coalesce(r.quantity, 0) + 1, r.timestamp = datetime()
       RETURN p
       `,
-      { userId, productId }
-    );
+            { userId, productId }
+        );
 
-    if (result.records.length === 0)
-      return res.status(400).json({ success: false, message: "Product out of stock" });
+        if (result.records.length === 0)
+            return res.status(400).json({ success: false, message: 'Product out of stock' });
 
-    res.json({ success: true, message: "Product purchased successfully" });
-  } catch (err) {
-    console.error("Error buying product:", err);
-    res.status(500).json({ success: false, message: "Server error" });
-  } finally {
-    await session.close();
-  }
+        res.json({ success: true, message: 'Product purchased successfully' });
+    } catch (err) {
+        console.error('Error buying product:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    } finally {
+        await session.close();
+    }
+};
+
+export const getRecommendations = async (req, res) => {
+    const session = getSession();
+    const userId = req.user.id;
+
+    try {
+        const result = await session.run(
+            `
+                CYPHER runtime=parallel
+                WITH gds.aura.api.credentials($clientId, $clientSecret) AS credentials
+
+                MATCH (u:User {id: $userId})-[:LIKED]->(p:Product)-[:OFFERED_BY]->(b:Brand)
+                WITH u, id(b) AS classifier, 1 AS total_weight
+                WITH u, COLLECT(classifier) AS ux_classifiers, COLLECT(total_weight) AS ux_features
+
+                // For all other users, collect their brand vectors
+                MATCH (similar:User)-[:LIKED]->(p:Product)-[:OFFERED_BY]->(b:Brand)
+                WHERE similar <> u
+                WITH u, similar, ux_classifiers, ux_features,
+                    id(b) AS classifier, COUNT(*) AS total_feature
+                WITH u, similar, ux_classifiers, ux_features,
+                    COLLECT(classifier) AS classifiers, COLLECT(total_feature) AS features
+
+                // Compute similarity between target user and each other user
+                WITH u, similar, ux_classifiers, ux_features,
+                    gds.similarity.jaccard(ux_classifiers, classifiers) AS score
+                WHERE score > 0
+
+                // Find products liked by similar users that the target user hasn’t liked
+                MATCH (similar)-[:LIKED]->(rec:Product)-[:OFFERED_BY]->(b:Brand)
+                WHERE NOT (u)-[:LIKED]->(rec)
+
+                // Compute a recommendation strength based on brand overlap
+                WITH rec, b, score, COUNT(*) AS rel_count
+                WITH rec, SUM(score * rel_count) AS final_score
+                RETURN rec, final_score AS score
+                ORDER BY score DESC
+                LIMIT 10;
+            `,
+            { clientId, clientSecret, userId }
+        );
+
+        const products = result.records.map((r) => ({
+            ...r.get('rec').properties,
+        }));
+
+        res.status(200).json({ success: true, products });
+    } catch (err) {
+        console.error('Error fetching recommended catalog:', err);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error while building recommendation catalog',
+        });
+    } finally {
+        await session.close();
+    }
 };

@@ -1,4 +1,3 @@
-// src/routes/userRoutes.js
 import express from 'express';
 import { createUser, loginUser, getUser, updateUser, getUserHistory } from '../controllers/user.js';
 import { basicAuth } from '../middlewares/auth.js';
