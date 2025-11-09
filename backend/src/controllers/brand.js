@@ -1,7 +1,6 @@
 import { getSession } from '../config/db.js';
 import { v4 as uuidv4 } from 'uuid';
 
-// Получить все бренды
 export const getBrands = async (req, res) => {
   const session = getSession();
   try {
@@ -21,7 +20,6 @@ export const getBrands = async (req, res) => {
   }
 };
 
-// Получить бренд по ID
 export const getBrandById = async (req, res) => {
   const session = getSession();
   const { id } = req.params;
@@ -46,7 +44,6 @@ export const getBrandById = async (req, res) => {
   }
 };
 
-// 💥 Создать новый бренд
 export const createBrand = async (req, res) => {
   const session = getSession();
   const { name } = req.body;

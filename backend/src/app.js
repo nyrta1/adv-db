@@ -11,8 +11,8 @@ const app = express();
 app.use(express.json());
 app.use(
   cors({
-    origin: "http://localhost:8080", // фронт
-    credentials: true, // разрешаем куки, Authorization и т.п.
+    origin: "http://localhost:8080",
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })

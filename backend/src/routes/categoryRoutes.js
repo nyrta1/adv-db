@@ -6,6 +6,6 @@ const router = express.Router();
 
 router.get('/', basicAuth, getCategories);
 router.get('/:id', basicAuth, getCategoryById);
-router.post('/', basicAuth, createCategory); // 🔥 добавили create
+router.post('/', basicAuth, createCategory);
 
 export default router;

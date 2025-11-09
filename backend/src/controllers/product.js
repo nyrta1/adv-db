@@ -5,7 +5,6 @@ const clientId = process.env.CLIENT_ID;
 const clientSecret = process.env.CLIENT_SECRET;
 
 /**
- * Create a new product and link it to Brand + Category
  * Expected body:
  * {
  *   "name": "Air Max 2024",
@@ -13,7 +12,7 @@ const clientSecret = process.env.CLIENT_SECRET;
  *   "stock": 50,
  *   "brandId": "uuid-of-brand",
  *   "categoryId": "uuid-of-category",
- *   "imageUrl": "https://example.com/image.jpg" // optional
+ *   "imageUrl": "https://example.com/image.jpg"
  * }
  */
 export const createProduct = async (req, res) => {
@@ -76,16 +75,12 @@ export const createProduct = async (req, res) => {
     }
 };
 
-/**
- * Get product by ID
- */
 export const getProductById = async (req, res) => {
     const session = getSession();
     const { id } = req.params;
-    const user = req.user; // берём из basicAuth middleware
+    const user = req.user;
 
     try {
-        // 🧩 1️⃣ Находим товар
         const result = await session.run(
             `
       MATCH (p:Product {id: $id})
@@ -107,7 +102,6 @@ export const getProductById = async (req, res) => {
             brand: record.get('b')?.properties || null,
         };
 
-        // 🧠 2️⃣ Если пользователь авторизован — создаём связь VIEWED
         if (user?.id) {
             await session.run(
                 `
@@ -130,7 +124,6 @@ export const getProductById = async (req, res) => {
     }
 };
 
-// Combined handler: supports search + brand + category filters
 /*
 export const getProducts = async (req, res) => {
     const session = getSession();
@@ -242,7 +235,6 @@ export const getProducts = async (req, res) => {
       `;
         }
 
-        // фильтрация (по названию, бренду, категории)
         if (query || brand || category) {
             cypher = `
         CALL {
@@ -288,7 +280,6 @@ export const toggleLikeProduct = async (req, res) => {
     if (!userId || !productId) return res.status(400).json({ success: false, message: 'Missing user or product ID' });
 
     try {
-        // Проверяем — уже лайкнут?
         const check = await session.run(
             `
       MATCH (u:User {id: $userId})-[r:LIKED]->(p:Product {id: $productId})
@@ -298,14 +289,12 @@ export const toggleLikeProduct = async (req, res) => {
         );
 
         if (check.records.length > 0) {
-            // Удаляем лайк
             await session.run(`MATCH (u:User {id: $userId})-[r:LIKED]->(p:Product {id: $productId}) DELETE r`, {
                 userId,
                 productId,
             });
             return res.json({ success: true, liked: false, message: 'Product unliked' });
         } else {
-            // Создаём лайк
             await session.run(
                 `
         MATCH (u:User {id: $userId}), (p:Product {id: $productId})
@@ -372,20 +361,16 @@ export const getRecommendations = async (req, res) => {
                 MATCH (u:User {id: $userId})-[:LIKED]->(p:Product)
                 WITH u, collect(DISTINCT id(p)) AS ux_products
 
-                // 2️⃣ Collect products liked by other users
                 MATCH (similar:User)-[:LIKED]->(p2:Product)
                 WHERE similar <> u
                 WITH u, ux_products, similar, collect(DISTINCT id(p2)) AS similar_products
 
-                // 3️⃣ Compute Jaccard similarity between users
                 WITH u, ux_products, similar, gds.similarity.jaccard(ux_products, similar_products) AS similarity
                 WHERE similarity > 0  // threshold for including similar users
 
-                // 4️⃣ Find products liked by similar users that the target user hasn’t liked
                 MATCH (similar)-[:LIKED]->(rec:Product)
                 WHERE NOT id(rec) IN ux_products
 
-                // 5️⃣ Aggregate recommendation score: sum of similarity scores for each product
                 WITH rec, sum(similarity) AS final_score
                 RETURN rec AS product, final_score AS score
                 ORDER BY score DESC

@@ -6,6 +6,6 @@ const router = express.Router();
 
 router.get('/', basicAuth, getBrands);
 router.get('/:id', basicAuth, getBrandById);
-router.post('/', basicAuth, createBrand); // 🔥 добавили create
+router.post('/', basicAuth, createBrand); 
 
 export default router;

@@ -1,7 +1,6 @@
 import { getSession } from '../config/db.js';
 import { v4 as uuidv4 } from 'uuid';
 
-// Получить все категории
 export const getCategories = async (req, res) => {
   const session = getSession();
   try {
@@ -21,7 +20,6 @@ export const getCategories = async (req, res) => {
   }
 };
 
-// Получить категорию по ID
 export const getCategoryById = async (req, res) => {
   const session = getSession();
   const { id } = req.params;
@@ -46,7 +44,6 @@ export const getCategoryById = async (req, res) => {
   }
 };
 
-// 💥 Создать новую категорию
 export const createCategory = async (req, res) => {
   const session = getSession();
   const { name } = req.body;
