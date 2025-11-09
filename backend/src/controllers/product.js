@@ -368,31 +368,26 @@ export const getRecommendations = async (req, res) => {
                 CYPHER runtime=parallel
                 WITH gds.aura.api.credentials($clientId, $clientSecret) AS credentials
 
-                MATCH (u:User {id: $userId})-[:LIKED]->(p:Product)-[:OFFERED_BY]->(b:Brand)
-                WITH u, id(b) AS classifier, 1 AS total_weight
-                WITH u, COLLECT(classifier) AS ux_classifiers, COLLECT(total_weight) AS ux_features
 
-                // For all other users, collect their brand vectors
-                MATCH (similar:User)-[:LIKED]->(p:Product)-[:OFFERED_BY]->(b:Brand)
+                MATCH (u:User {id: $userId})-[:LIKED]->(p:Product)
+                WITH u, collect(DISTINCT id(p)) AS ux_products
+
+                // 2️⃣ Collect products liked by other users
+                MATCH (similar:User)-[:LIKED]->(p2:Product)
                 WHERE similar <> u
-                WITH u, similar, ux_classifiers, ux_features,
-                    id(b) AS classifier, COUNT(*) AS total_feature
-                WITH u, similar, ux_classifiers, ux_features,
-                    COLLECT(classifier) AS classifiers, COLLECT(total_feature) AS features
+                WITH u, ux_products, similar, collect(DISTINCT id(p2)) AS similar_products
 
-                // Compute similarity between target user and each other user
-                WITH u, similar, ux_classifiers, ux_features,
-                    gds.similarity.jaccard(ux_classifiers, classifiers) AS score
-                WHERE score > 0
+                // 3️⃣ Compute Jaccard similarity between users
+                WITH u, ux_products, similar, gds.similarity.jaccard(ux_products, similar_products) AS similarity
+                WHERE similarity > 0  // threshold for including similar users
 
-                // Find products liked by similar users that the target user hasn’t liked
-                MATCH (similar)-[:LIKED]->(rec:Product)-[:OFFERED_BY]->(b:Brand)
-                WHERE NOT (u)-[:LIKED]->(rec)
+                // 4️⃣ Find products liked by similar users that the target user hasn’t liked
+                MATCH (similar)-[:LIKED]->(rec:Product)
+                WHERE NOT id(rec) IN ux_products
 
-                // Compute a recommendation strength based on brand overlap
-                WITH rec, b, score, COUNT(*) AS rel_count
-                WITH rec, SUM(score * rel_count) AS final_score
-                RETURN rec, final_score AS score
+                // 5️⃣ Aggregate recommendation score: sum of similarity scores for each product
+                WITH rec, sum(similarity) AS final_score
+                RETURN rec AS product, final_score AS score
                 ORDER BY score DESC
                 LIMIT 10;
             `,
@@ -400,9 +395,9 @@ export const getRecommendations = async (req, res) => {
         );
 
         const products = result.records.map((r) => ({
-            ...r.get('rec').properties,
+            ...r.get('product').properties,
         }));
-
+        console.log(products);
         res.status(200).json({ success: true, products });
     } catch (err) {
         console.error('Error fetching recommended catalog:', err);
