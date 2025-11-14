@@ -1,6 +1,49 @@
+/**
+ * @openapi
+ * tags:
+ *   name: Users
+ *   description: User management & auth
+ */
+
 import bcrypt from 'bcrypt';
 import { getSession } from '../config/db.js';
 
+/**
+ * @openapi
+ * /users/register:
+ *   post:
+ *     summary: Register a new user
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - age
+ *               - password
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: John Doe
+ *               email:
+ *                 type: string
+ *                 example: john@gmail.com
+ *               age:
+ *                 type: integer
+ *                 example: 21
+ *               password:
+ *                 type: string
+ *                 example: secret123
+ *     responses:
+ *       201:
+ *         description: User created successfully
+ *       400:
+ *         description: User already exists
+ */
 export const createUser = async (req, res) => {
     const session = getSession();
     const { name, email, age, password } = req.body;
@@ -40,6 +83,34 @@ export const createUser = async (req, res) => {
     }
 };
 
+/**
+ * @openapi
+ * /users/login:
+ *   post:
+ *     summary: Login user
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: john@gmail.com
+ *               password:
+ *                 type: string
+ *                 example: secret123
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *       401:
+ *         description: Invalid credentials
+ */
 export const loginUser = async (req, res) => {
     const session = getSession();
     const { email, password } = req.body;
@@ -68,6 +139,27 @@ export const loginUser = async (req, res) => {
     }
 };
 
+/**
+ * @openapi
+ * /users/{id}:
+ *   get:
+ *     summary: Get a user by ID
+ *     tags: [Users]
+ *     security:
+ *       - BasicAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: 77fa8f00-c71d-4ca4-b193-9c8ee2f743df
+ *     responses:
+ *       200:
+ *         description: User object
+ *       404:
+ *         description: User not found
+ */
 export const getUser = async (req, res) => {
     const session = getSession();
     const { id } = req.params;
@@ -91,6 +183,45 @@ export const getUser = async (req, res) => {
     }
 };
 
+/**
+ * @openapi
+ * /users/{id}:
+ *   put:
+ *     summary: Update a user
+ *     tags: [Users]
+ *     security:
+ *       - BasicAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: 77fa8f00-c71d-4ca4-b193-9c8ee2f743df
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: New Name
+ *               email:
+ *                 type: string
+ *                 example: newemail@gmail.com
+ *               age:
+ *                 type: integer
+ *                 example: 25
+ *               password:
+ *                 type: string
+ *                 example: newpass123
+ *     responses:
+ *       200:
+ *         description: Updated user data
+ *       404:
+ *         description: User not found
+ */
 export const updateUser = async (req, res) => {
     const session = getSession();
     const { id } = req.params;
@@ -127,6 +258,27 @@ export const updateUser = async (req, res) => {
     }
 };
 
+/**
+ * @openapi
+ * /users/{id}/history:
+ *   get:
+ *     summary: Get user activity history (viewed, liked, bought)
+ *     tags: [Users]
+ *     security:
+ *       - BasicAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: 77fa8f00-c71d-4ca4-b193-9c8ee2f743df
+ *     responses:
+ *       200:
+ *         description: List of actions sorted by timestamp (desc)
+ *       404:
+ *         description: User not found
+ */
 export const getUserHistory = async (req, res) => {
   const session = getSession();
   const { id: userId } = req.params;

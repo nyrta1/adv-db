@@ -1,6 +1,46 @@
+/**
+ * @openapi
+ * tags:
+ *   name: Categories
+ *   description: Category management
+ */
+
 import { getSession } from '../config/db.js';
 import { v4 as uuidv4 } from 'uuid';
 
+/**
+ * @openapi
+ * /categories:
+ *   get:
+ *     summary: Get all product categories
+ *     tags: [Categories]
+ *     security:
+ *       - BasicAuth: []
+ *     responses:
+ *       200:
+ *         description: List of categories
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 categories:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         example: 38cc83f2-95e8-4f4a-b7c1-4972f598cb8a
+ *                       name:
+ *                         type: string
+ *                         example: Sneakers
+ *       500:
+ *         description: Internal server error
+ */
 export const getCategories = async (req, res) => {
   const session = getSession();
   try {
@@ -20,6 +60,27 @@ export const getCategories = async (req, res) => {
   }
 };
 
+/**
+ * @openapi
+ * /categories/{id}:
+ *   get:
+ *     summary: Get a category by ID
+ *     tags: [Categories]
+ *     security:
+ *       - BasicAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "d19f4d1a-92a3-448e-a3f0-71b0f80d9c32"
+ *     responses:
+ *       200:
+ *         description: Category object returned
+ *       404:
+ *         description: Category not found
+ */
 export const getCategoryById = async (req, res) => {
   const session = getSession();
   const { id } = req.params;
@@ -44,6 +105,34 @@ export const getCategoryById = async (req, res) => {
   }
 };
 
+/**
+ * @openapi
+ * /categories:
+ *   post:
+ *     summary: Create a new category
+ *     tags: [Categories]
+ *     security:
+ *       - BasicAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "Running Shoes"
+ *     responses:
+ *       201:
+ *         description: Category created successfully
+ *       400:
+ *         description: Missing required field [name]
+ *       500:
+ *         description: Internal server error
+ */
 export const createCategory = async (req, res) => {
   const session = getSession();
   const { name } = req.body;

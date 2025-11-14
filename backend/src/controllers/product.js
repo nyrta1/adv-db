@@ -1,3 +1,10 @@
+/**
+ * @openapi
+ * tags:
+ *   name: Products
+ *   description: Product management & recomendations & actions
+ */
+
 import { getSession } from '../config/db.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -5,15 +12,47 @@ const clientId = process.env.CLIENT_ID;
 const clientSecret = process.env.CLIENT_SECRET;
 
 /**
- * Expected body:
- * {
- *   "name": "Air Max 2024",
- *   "price": 159.99,
- *   "stock": 50,
- *   "brandId": "uuid-of-brand",
- *   "categoryId": "uuid-of-category",
- *   "imageUrl": "https://example.com/image.jpg"
- * }
+ * @openapi
+ * /products:
+ *   post:
+ *     summary: Create a new product
+ *     tags: [Products]
+ *     security:
+ *       - BasicAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - brandId
+ *               - categoryId
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "Air Max 2024"
+ *               price:
+ *                 type: number
+ *                 example: 159.99
+ *               stock:
+ *                 type: integer
+ *                 example: 50
+ *               brandId:
+ *                 type: string
+ *                 example: "b7f73b41-aaaa-bbbb-cccc-219d123abcde"
+ *               categoryId:
+ *                 type: string
+ *                 example: "bb12cd34-zzzz-kkkk-jjjj-9123bbcc4477"
+ *               imageUrl:
+ *                 type: string
+ *                 example: "https://example.com/product.jpg"
+ *     responses:
+ *       201:
+ *         description: Product created successfully
+ *       400:
+ *         description: Missing required fields
  */
 export const createProduct = async (req, res) => {
     const session = getSession();
@@ -75,6 +114,27 @@ export const createProduct = async (req, res) => {
     }
 };
 
+/**
+ * @openapi
+ * /products/{id}:
+ *   get:
+ *     summary: Get product details by ID
+ *     tags: [Products]
+ *     security:
+ *       - BasicAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "9a8b7c6d-1111-2222-3333-aabbccddeeff"
+ *     responses:
+ *       200:
+ *         description: Product data returned
+ *       404:
+ *         description: Product not found
+ */
 export const getProductById = async (req, res) => {
     const session = getSession();
     const { id } = req.params;
@@ -179,6 +239,45 @@ export const getProducts = async (req, res) => {
 };
 */
 
+/**
+ * @openapi
+ * /products:
+ *   get:
+ *     summary: Get catalog with recommendation ranking
+ *     tags: [Products]
+ *     security:
+ *       - BasicAuth: []
+ *     parameters:
+ *       - name: query
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: string
+ *         example: "nike"
+ *       - name: brand
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: string
+ *         example: "Nike"
+ *       - name: category
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: string
+ *         example: "Sneakers"
+ *       - name: limit
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: integer
+ *         example: 20
+ *     responses:
+ *       200:
+ *         description: List of products sorted by score
+ *       500:
+ *         description: Internal server error
+ */
 export const getProducts = async (req, res) => {
     const session = getSession();
     const { query, brand, category } = req.query;
@@ -272,6 +371,27 @@ export const getProducts = async (req, res) => {
     }
 };
 
+/**
+ * @openapi
+ * /products/{id}/like:
+ *   post:
+ *     summary: Like or unlike a product
+ *     tags: [Products]
+ *     security:
+ *       - BasicAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
+ *     responses:
+ *       200:
+ *         description: Product like status toggled
+ *       400:
+ *         description: Missing user or product ID
+ */
 export const toggleLikeProduct = async (req, res) => {
     const session = getSession();
     const userId = req.user?.id;
@@ -314,6 +434,27 @@ export const toggleLikeProduct = async (req, res) => {
     }
 };
 
+/**
+ * @openapi
+ * /products/{id}/buy:
+ *   post:
+ *     summary: Buy product (decrease stock + record user purchase)
+ *     tags: [Products]
+ *     security:
+ *       - BasicAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "e8f4c123-aaaa-bbbb-cccc-998877665544"
+ *     responses:
+ *       200:
+ *         description: Product purchased successfully
+ *       400:
+ *         description: Product out of stock
+ */
 export const buyProduct = async (req, res) => {
     const session = getSession();
     const userId = req.user?.id;
@@ -347,6 +488,20 @@ export const buyProduct = async (req, res) => {
     }
 };
 
+/**
+ * @openapi
+ * /products/recommendations/me:
+ *   get:
+ *     summary: Get personalized product recommendations for user
+ *     tags: [Products]
+ *     security:
+ *       - BasicAuth: []
+ *     responses:
+ *       200:
+ *         description: Recommended products list
+ *       500:
+ *         description: Internal server error while generating recommendations
+ */
 export const getRecommendations = async (req, res) => {
     const session = getSession();
     const userId = req.user.id;
