@@ -537,7 +537,7 @@ export const getRecommendations = async (req, res) => {
         const products = result.records.map((r) => ({
             ...r.get('product').properties,
         }));
-        console.log(products);
+
         res.status(200).json({ success: true, products });
     } catch (err) {
         console.error('Error fetching recommended catalog:', err);

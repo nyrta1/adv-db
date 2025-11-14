@@ -280,12 +280,16 @@ export const updateUser = async (req, res) => {
  *         description: User not found
  */
 export const getUserHistory = async (req, res) => {
-  const session = getSession();
-  const { id: userId } = req.params;
+    const session = getSession();
+    const { id: userId } = req.params;
 
-  try {
-    const result = await session.run(
-      `
+    if (userId !== req.user.id) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    try {
+        const result = await session.run(
+            `
       MATCH (u:User {id: $userId})
       OPTIONAL MATCH (u)-[v:VIEWED]->(vp:Product)
       OPTIONAL MATCH (u)-[l:LIKED]->(lp:Product)
@@ -295,24 +299,24 @@ export const getUserHistory = async (req, res) => {
         collect({type: "LIKED", product: lp, time: l.timestamp}) +
         collect({type: "BOUGHT", product: bp, time: b.timestamp}) as actions
       `,
-      { userId }
-    );
+            { userId }
+        );
 
-    const actions = result.records[0].get("actions") || [];
-    const history = actions
-      .filter((a) => a.product)
-      .map((a) => ({
-        type: a.type,
-        timestamp: a.time,
-        ...a.product.properties,
-      }))
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        const actions = result.records[0].get('actions') || [];
+        const history = actions
+            .filter((a) => a.product)
+            .map((a) => ({
+                type: a.type,
+                timestamp: a.time,
+                ...a.product.properties,
+            }))
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-    res.json({ success: true, history });
-  } catch (err) {
-    console.error("Error fetching history:", err);
-    res.status(500).json({ success: false, message: "Server error" });
-  } finally {
-    await session.close();
-  }
+        res.json({ success: true, history });
+    } catch (err) {
+        console.error('Error fetching history:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    } finally {
+        await session.close();
+    }
 };
